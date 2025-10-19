@@ -679,7 +679,24 @@
     const createYourOwn = document.getElementById('createYourOwn');
 
     let currentShareUrl = '';
+    let currentShortUrl = ''; // For shortened URL
     let currentObjectUrl = null;
+
+    // NEW: Function to shorten URL using TinyURL API (no key required)
+    async function shortenUrl(longUrl) {
+      try {
+        const response = await fetch(`http://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+        if (response.ok) {
+          return await response.text();
+        } else {
+          throw new Error('Shortening failed');
+        }
+      } catch (error) {
+        console.error('URL shortening error:', error);
+        // Fallback to original URL if API fails
+        return longUrl;
+      }
+    }
 
     function fileToDataURL(file) {
       return new Promise((res, rej) => {
@@ -698,6 +715,7 @@
       setTimeout(() => sparkle.remove(), 500);
     }
 
+    // UPDATED: Build the original share URL
     function buildShareUrl({ name, dataUrl }) {
       const u = new URL(window.location.href.split('?')[0]);
       u.searchParams.set('name', encodeURIComponent(name));
@@ -706,10 +724,15 @@
       return u.toString();
     }
 
-    function setShareTargets(url, name) {
-      currentShareUrl = url;
-      const shareText = encodeURIComponent(`${name} is sharing festive cheer with you!%0ALight up your heart this Diwali with positivity and love. 🪔%0ATap here to see your Diwali surprise!`);
-      waShare.href = `https://wa.me/?text=${shareText}%0A${encodeURIComponent(url)}`;
+    // UPDATED: Shorten and set share targets with custom message
+    async function setShareTargets(originalUrl, name) {
+      currentShareUrl = originalUrl; // Keep original for local reference
+      currentShortUrl = await shortenUrl(originalUrl); // Get shortened version
+
+      // Custom message as requested
+      const shareText = encodeURIComponent(`🎇 ${name} has sent you a sparkling Diwali greeting!\nWishing you happiness, success, and endless joy. 🌟\n🎁 Click here to view your personalized message! ${currentShortUrl}`);
+
+      waShare.href = `https://wa.me/?text=${shareText}`;
     }
 
     universalShare.addEventListener('click', async () => {
@@ -717,14 +740,14 @@
         try {
           await navigator.share({
             title: 'Happy Diwali Personalised Wish',
-            text: `${senderNameInput.value.trim()} is sharing festive cheer with you! Light up your heart this Diwali with positivity and love. 🪔`,
-            url: currentShareUrl,
+            text: `🎇 ${senderNameInput.value.trim()} has sent you a sparkling Diwali greeting!\nWishing you happiness, success, and endless joy. 🌟\n🎁 Click here to view your personalized message!`,
+            url: currentShortUrl || currentShareUrl,
           });
         } catch {
-          copyShareLinkFallback(currentShareUrl);
+          copyShareLinkFallback(currentShortUrl || currentShareUrl);
         }
       } else {
-        copyShareLinkFallback(currentShareUrl);
+        copyShareLinkFallback(currentShortUrl || currentShareUrl);
       }
     });
 
@@ -733,7 +756,7 @@
         const original = universalShare.textContent;
         universalShare.textContent = 'Link Copied! ✅';
         setTimeout(() => universalShare.textContent = original, 1500);
-      }).catch(() => alert('Could not copy: ' + url.substring(0, 50) + '...'));
+      }).catch(() => alert('Could not copy: ' + (url || currentShareUrl).substring(0, 50) + '...'));
     }
 
     photoInput.addEventListener('change', () => {
@@ -768,8 +791,8 @@
       recipientPhoto.src = photoSrc;
       senderLabel.textContent = name;
 
-      const url = buildShareUrl({ name, dataUrl: isLargeFile ? null : dataUrlToShare });
-      setShareTargets(url, name);
+      const originalUrl = buildShareUrl({ name, dataUrl: isLargeFile ? null : dataUrlToShare });
+      await setShareTargets(originalUrl, name); // Shortens and sets
 
       createView.classList.add('hidden');
       greetView.classList.remove('hidden');
@@ -781,6 +804,7 @@
       photoInput.value = '';
       fileWarning.style.display = 'none';
       currentShareUrl = '';
+      currentShortUrl = '';
       if (currentObjectUrl) {
         URL.revokeObjectURL(currentObjectUrl);
         currentObjectUrl = null;
@@ -818,8 +842,8 @@
           recipientPhoto.src = 'diwali photo.jpg';
         }
 
-        const url = buildShareUrl({ name, dataUrl: img.startsWith('data:image/') ? decodeURIComponent(img) : null });
-        setShareTargets(url, name);
+        const originalUrl = buildShareUrl({ name, dataUrl: img.startsWith('data:image/') ? decodeURIComponent(img) : null });
+        setShareTargets(originalUrl, name);
       }
 
       setMusicIcon(getMusicPref());
@@ -853,6 +877,7 @@
     style.textContent = '@keyframes sparkleAnim { 0% { transform: scale(0) rotate(0deg); opacity: 1; } 100% { transform: scale(20) rotate(180deg); opacity: 0; } }';
     document.head.appendChild(style);
   </script>
+
+
 </body>
 </html>
-
